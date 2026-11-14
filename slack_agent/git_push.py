@@ -43,6 +43,24 @@ def sync_to_base():
     return True, ""
 
 
+def _unstage_gitlinks():
+    """A task's own scratch work can leave a directory with its own .git
+    inside the workdir (e.g. a nested clone it made to test something).
+    `git add -A` stages that as a gitlink (mode 160000) instead of its files,
+    which looks like a submodule reference - but with no .gitmodules entry,
+    that breaks any later `git submodule` command, including the one
+    actions/checkout runs during its own cleanup. Drop any such path from
+    the index (left alone on disk) before committing."""
+    staged = _run(["git", "diff", "--cached", "--raw"])
+    gitlink_paths = [
+        line.split("\t", 1)[1]
+        for line in staged.stdout.splitlines()
+        if " 160000 " in line
+    ]
+    for path in gitlink_paths:
+        _run(["git", "rm", "-r", "--cached", "--quiet", path])
+
+
 def push_changes(description: str) -> PushResult:
     """Commit any changes the task made onto a new branch, push it, and open a
     PR against BASE_BRANCH. No-ops if the workdir has no changes. Leaves the
@@ -58,6 +76,8 @@ def push_changes(description: str) -> PushResult:
         ["git", "commit", "-m", f"[{config.AGENT_NAME}] {description[:72]}"],
         ["git", "push", "-u", "origin", branch],
     ):
+        if step[1] == "commit":
+            _unstage_gitlinks()
         result = _run(step)
         if result.returncode != 0:
             _run(["git", "checkout", config.BASE_BRANCH])
