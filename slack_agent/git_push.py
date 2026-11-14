@@ -50,12 +50,22 @@ def _nested_git_paths():
     made for its own use. Git stages that as a gitlink (mode 160000) instead
     of its files, which looks like a submodule reference - but with no
     .gitmodules entry, that breaks any later `git submodule` command,
-    including the one actions/checkout runs during its own cleanup. Find
-    every such path so none of them ever get staged in the first place."""
+    including the one actions/checkout runs during its own cleanup.
+
+    Only paths git wouldn't already skip on its own are worth returning:
+    a path already covered by .gitignore (e.g. a scratch clone someone made
+    under a directory like .isolated/, which .gitignore already excludes)
+    is never touched by `git add -A` anyway - and explicitly naming an
+    already-ignored path as a pathspec (even as an :(exclude)) makes git
+    refuse the whole `add` with "paths are ignored by .gitignore", which
+    blocks every other legitimate file change in the same commit too. Only
+    a nested-git path git would otherwise actually stage needs excluding."""
     found = []
     for root, dirs, files in os.walk(config.WORKDIR):
         if root != config.WORKDIR and (".git" in dirs or ".git" in files):
-            found.append(os.path.relpath(root, config.WORKDIR).replace(os.sep, "/"))
+            rel = os.path.relpath(root, config.WORKDIR).replace(os.sep, "/")
+            if _run(["git", "check-ignore", "-q", rel]).returncode != 0:
+                found.append(rel)
             dirs[:] = []
             continue
         if ".git" in dirs:
