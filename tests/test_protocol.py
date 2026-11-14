@@ -18,6 +18,13 @@ def test_parse_task_none():
     assert protocol.parse_task("just chatting, no task here") is None
 
 
+def test_parse_task_empty_string():
+    # bot.py guards a literal None `text` (some Slack message types send it
+    # that way) down to "" before this is ever called - make sure "" itself
+    # is handled too.
+    assert protocol.parse_task("") is None
+
+
 def test_is_for_me():
     assert protocol.is_for_me("stephen", "stephen")
     assert protocol.is_for_me("all", "stephen")
@@ -32,6 +39,7 @@ if __name__ == "__main__":
     test_parse_task_for_me()
     test_parse_task_broadcast()
     test_parse_task_none()
+    test_parse_task_empty_string()
     test_is_for_me()
     test_multiline_description()
     print("All protocol tests passed.")

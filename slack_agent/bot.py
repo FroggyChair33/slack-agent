@@ -71,7 +71,10 @@ def handle_message(event, say):
     if event.get("bot_id") or event.get("subtype"):
         return
 
-    parsed = protocol.parse_task(event.get("text", ""))
+    # event.get("text", "") only falls back when the key is missing - some
+    # message types (e.g. blocks/attachments with no plain text) send it as
+    # an explicit null, which "or """ catches too.
+    parsed = protocol.parse_task(event.get("text") or "")
     if not parsed:
         return
 
