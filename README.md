@@ -48,7 +48,19 @@ Anyone - including the OpenAI orchestrator - just needs to read the thread
 to follow status. Each teammate runs their own copy of this script under
 their own `AGENT_NAME`.
 
-## One-time Slack app setup (whoever has workspace admin - can be reused for everyone)
+## Slack app setup - once per teammate, not once per team
+
+**Each teammate needs their own Slack app (own bot token, own app-level
+token) - don't reuse one set of tokens across machines.** Slack's Socket
+Mode load-balances events across connections that share the same
+app-level token rather than delivering to all of them, so two people
+sharing one app could have a task silently delivered to the wrong
+person's process and never run. Separate apps don't have this problem -
+each one independently gets its own copy of every channel event. Routing
+still works the same way (`@agent:<name>`); this only changes how many
+Slack apps exist, not the protocol.
+
+Repeat this whole section for every teammate running an agent:
 
 1. Create an app at https://api.slack.com/apps -> "From scratch".
 2. **Socket Mode**: enable it, generate an app-level token with the
@@ -60,9 +72,9 @@ their own `AGENT_NAME`.
 5. Install the app to the workspace -> copy the Bot User OAuth Token, this
    is `SLACK_BOT_TOKEN` (`xoxb-...`).
 6. Invite the bot to the channel: `/invite @your-bot-name`.
-7. Share `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` with every teammate running
-   this script (same app/bot identity for everyone is fine - agents are
-   distinguished by `AGENT_NAME`, not by Slack identity).
+7. Keep these tokens to yourself - don't share them with other teammates.
+   Each person who repeats this section ends up with their own
+   `SLACK_BOT_TOKEN`/`SLACK_APP_TOKEN` pair for their own app.
 
 ## Per-teammate setup
 
@@ -123,14 +135,17 @@ python tests/test_roles.py
 
 ## Other notes / risks
 
-- `CLAUDE_PERMISSION_MODE=acceptEdits` (the default) auto-approves file
-  edits but still prompts for other tool use (e.g. bash), which will hang
-  a headless run. If tasks need bash/tool access to complete unattended,
-  switch it to `bypassPermissions` - only do that if you trust everything
-  this channel will hand your agent.
-- All teammates sharing one Slack bot token means every script sees every
-  message; each just ignores tasks not addressed to its `AGENT_NAME`. Fine
-  at hackathon scale.
+- `AGENT_SANDBOX_MODE=acceptEdits` (the claude-kind default) auto-approves
+  file edits but still prompts for other tool use (e.g. bash), which will
+  hang a headless run. If tasks need bash/tool access to complete
+  unattended, switch it to `bypassPermissions` - only do that if you trust
+  everything this channel will hand your agent (see `roles/reviewer.md`
+  for why that matters most for the reviewer role).
+- Each teammate has their own Slack app now (see "Slack app setup"
+  above), so each one's process only sees its own app's events - no
+  cross-filtering needed. If two agents are ever pointed at the *same*
+  Slack app/tokens anyway, remember Socket Mode load-balances across
+  their connections rather than fanning out, so don't do that.
 - No de-duplication across agents on `@agent:all` - if two teammates are
   both listening for `all`, both will run it (intentional - that's what
   broadcast means here, but worth knowing).
