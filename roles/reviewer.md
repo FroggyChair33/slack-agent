@@ -42,11 +42,13 @@ everything" - it's one `gh` invocation per task, not a standing watcher.
 
 Running `gh pr merge` is a **bash command**, not a file edit. The normal
 safe defaults (`acceptEdits` / `workspace-write`) will block or hang on
-it, by design. For this role to actually merge anything, you must
-explicitly set a more permissive `AGENT_SANDBOX_MODE`
-(`bypassPermissions` for Claude; a mode that allows unapproved shell
-commands for Codex, e.g. pairing `danger-full-access` with
-`--approve-for-me`/`--yolo`-equivalent behavior).
+it, by design. For this role to actually merge anything, set
+`AGENT_SANDBOX_MODE=bypassPermissions` (Claude) or
+`AGENT_SANDBOX_MODE=yolo` (Codex). `yolo` maps to Codex's
+`--dangerously-bypass-approvals-and-sandbox` - the one flag confirmed to
+skip every approval prompt; `--approve-for-me` looked like a softer
+option but it can't be combined with `--sandbox` at all (they conflict),
+so there isn't a middle setting here for Codex.
 
 That is a materially bigger blast radius than the coder role: an agent
 with that sandbox setting can run **any** shell command unsupervised, not

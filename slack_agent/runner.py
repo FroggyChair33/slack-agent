@@ -12,6 +12,20 @@ class TaskResult:
 def build_command(description: str) -> list:
     """Build the headless CLI invocation for the configured agent kind."""
     if config.AGENT_KIND == "codex":
+        if config.AGENT_SANDBOX_MODE == "yolo":
+            # --approve-for-me (the flag that actually skips approval
+            # prompts) can't be combined with --sandbox - they conflict.
+            # The only flag confirmed to run every command unattended,
+            # including bash/gh, is this one. Needed for the reviewer role
+            # to actually complete `gh pr merge` instead of hanging on an
+            # approval prompt nothing can answer.
+            return [
+                config.AGENT_BIN,
+                "exec",
+                description,
+                "--dangerously-bypass-approvals-and-sandbox",
+                "--skip-git-repo-check",
+            ]
         return [
             config.AGENT_BIN,
             "exec",

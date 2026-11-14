@@ -28,7 +28,17 @@ def test_codex_command():
     ]
 
 
+def test_codex_yolo_command():
+    config.AGENT_KIND = "codex"
+    config.AGENT_BIN = "codex"
+    config.AGENT_SANDBOX_MODE = "yolo"
+    assert runner.build_command("merge PR #3") == [
+        "codex", "exec", "merge PR #3", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check",
+    ]
+
+
 if __name__ == "__main__":
     test_claude_command()
     test_codex_command()
+    test_codex_yolo_command()
     print("All runner command tests passed.")
