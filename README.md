@@ -60,21 +60,59 @@ each one independently gets its own copy of every channel event. Routing
 still works the same way (`@agent:<name>`); this only changes how many
 Slack apps exist, not the protocol.
 
-Repeat this whole section for every teammate running an agent:
+Repeat this whole section for every teammate running an agent.
 
-1. Create an app at https://api.slack.com/apps -> "From scratch".
-2. **Socket Mode**: enable it, generate an app-level token with the
-   `connections:write` scope -> this is `SLACK_APP_TOKEN` (`xapp-...`).
-3. **OAuth & Permissions**: add bot token scopes `chat:write` and
-   `channels:history` (or `groups:history` if it's a private channel).
-4. **Event Subscriptions**: enable, and under "Subscribe to bot events" add
-   `message.channels` (or `message.groups` for a private channel).
-5. Install the app to the workspace -> copy the Bot User OAuth Token, this
-   is `SLACK_BOT_TOKEN` (`xoxb-...`).
-6. Invite the bot to the channel: `/invite @your-bot-name`.
-7. Keep these tokens to yourself - don't share them with other teammates.
+**Fastest path - paste this manifest** at https://api.slack.com/apps ->
+"Create New App" -> "From scratch" -> "Paste a manifest". Copy it
+straight from this file on GitHub (not through Slack, Notes, Word, etc. -
+those can silently swap the straight quotes for curly ones and break the
+parser). Change `name`/`display_name` to something unique per teammate
+before creating it:
+
+```yaml
+display_information:
+  name: hackathon-coding-agent-codex
+features:
+  bot_user:
+    display_name: hackathon-coding-agent-codex
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - "chat:write"
+      - "channels:history"
+      - "groups:history"
+settings:
+  event_subscriptions:
+    bot_events:
+      - "message.channels"
+      - "message.groups"
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false
+```
+
+Then, on the created app's settings page:
+
+1. **Socket Mode**: already enabled by the manifest - generate an
+   app-level token with the `connections:write` scope -> this is
+   `SLACK_APP_TOKEN` (`xapp-...`).
+2. **OAuth & Permissions**: click **Install to Workspace** (scopes are
+   already set by the manifest) -> copy the Bot User OAuth Token, this is
+   `SLACK_BOT_TOKEN` (`xoxb-...`).
+3. Invite the bot to the channel: `/invite @your-bot-name`.
+4. Keep these tokens to yourself - don't share them with other teammates.
    Each person who repeats this section ends up with their own
    `SLACK_BOT_TOKEN`/`SLACK_APP_TOKEN` pair for their own app.
+
+**Manual path (no manifest):** create the app "From scratch" with no
+manifest, then set the same things by hand - Socket Mode on with an
+app-level token (`connections:write`), bot scopes `chat:write` +
+`channels:history`/`groups:history` under OAuth & Permissions, and
+`message.channels`/`message.groups` under Event Subscriptions - before
+installing and inviting the bot.
 
 ## Per-teammate setup
 
