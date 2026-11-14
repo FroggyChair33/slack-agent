@@ -6,6 +6,10 @@ SLACK_APP_TOKEN = os.environ["SLACK_APP_TOKEN"]
 
 WORKDIR = os.environ.get("AGENT_WORKDIR", os.getcwd())
 
+# "coder" (default - writes code, opens PRs, never merges) or "reviewer"
+# (reviews/merges existing PRs, opens none itself). See roles/*.md.
+AGENT_ROLE = os.environ.get("AGENT_ROLE", "coder")
+
 # "claude" (Claude Code) or "codex" (OpenAI Codex CLI) - picks the command
 # shape runner.py builds.
 AGENT_KIND = os.environ.get("AGENT_KIND", "claude")
@@ -15,3 +19,7 @@ _DEFAULT_SANDBOX_MODE = {"claude": "acceptEdits", "codex": "workspace-write"}
 AGENT_SANDBOX_MODE = os.environ.get("AGENT_SANDBOX_MODE", _DEFAULT_SANDBOX_MODE.get(AGENT_KIND, "acceptEdits"))
 
 TASK_TIMEOUT_SECONDS = int(os.environ.get("TASK_TIMEOUT_SECONDS", "1800"))
+
+# Branch in the shared repo that AGENT_WORKDIR gets synced to before each task,
+# and that finished work gets PR'd against.
+BASE_BRANCH = os.environ.get("AGENT_BASE_BRANCH", "main")

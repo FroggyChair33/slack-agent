@@ -5,9 +5,35 @@ Slack-based orchestrator (human or bot) can hand out tasks and get results
 back in-thread. Runs over Socket Mode - no public URL/webhook needed, so it
 works straight from a laptop for the hackathon.
 
+## Roles
+
+`AGENT_ROLE` picks what a running agent is for:
+
+- [`roles/coder.md`](./roles/coder.md) (default) - writes code, opens PRs, never merges.
+- [`roles/reviewer.md`](./roles/reviewer.md) - reviews/merges existing PRs, opens none itself. Needs a much more permissive sandbox setting to actually merge - read that file's warning before enabling it.
+
+## Landing finished work
+
+Each successful task gets committed on a fresh branch
+(`agent/<name>/<slugified-task>-<timestamp>`) and opened as a PR against
+`AGENT_BASE_BRANCH` (default `main`) via `gh pr create` - nothing is ever
+pushed straight to main. The PR link is posted back in the Slack thread.
+Before each task, the workdir is reset to a clean copy of the base branch
+(`git checkout <base> && git pull --ff-only`) so every task starts from
+the same state. Tasks that don't touch any files (e.g. answering a
+question) just skip the push silently.
+
+Requires `git` and `gh` installed and authenticated (`gh auth login`) on
+each teammate's machine, and `AGENT_WORKDIR` must be a clone of the shared
+repo with push access. Tasks for the same agent are serialized (one at a
+time) specifically because they share one working tree - running two at
+once would stomp on each other's files and git state.
+
 ## Task protocol
 
-There was no existing convention, so this defines one:
+Full spec in [PROTOCOL.md](./PROTOCOL.md) - the contract every agent
+(Claude Code, Codex, Instinct, anything else) must follow for routing and
+status reporting to stay consistent. Summary:
 
 - **Assign a task:** post `@agent:<name> <task description>` as a plain
   message in the channel. Use `@agent:all` to broadcast to every running
@@ -74,6 +100,8 @@ for a `turn.failed`/`error` event instead of the exit code.
 python tests/test_protocol.py
 python tests/test_dedupe.py
 python tests/test_runner_command.py
+python tests/test_git_push.py
+python tests/test_roles.py
 ```
 
 ## Loop / duplicate-execution protection

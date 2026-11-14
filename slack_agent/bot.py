@@ -7,19 +7,47 @@ load_dotenv()
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from . import config, dedupe, protocol, runner
+from . import config, dedupe, git_push, protocol, roles, runner
 
 app = App(token=config.SLACK_BOT_TOKEN)
 _guard = dedupe.SeenGuard()
+# AGENT_WORKDIR is one shared git working tree - serialize tasks so two
+# messages addressed to this agent can't run git/CLI ops in it at once.
+_workdir_lock = threading.Lock()
 
 
 def _work(description: str, thread_ts: str, say):
     say(text=protocol.picked_up_message(config.AGENT_NAME), thread_ts=thread_ts)
-    result = runner.run_task(description)
-    if result.success:
-        say(text=protocol.success_message(config.AGENT_NAME, result.output), thread_ts=thread_ts)
-    else:
-        say(text=protocol.failure_message(config.AGENT_NAME, result.output), thread_ts=thread_ts)
+
+    with _workdir_lock:
+        synced, sync_note = git_push.sync_to_base()
+        if not synced:
+            say(
+                text=protocol.failure_message(
+                    config.AGENT_NAME, f"couldn't sync workdir to {config.BASE_BRANCH}: {sync_note}"
+                ),
+                thread_ts=thread_ts,
+            )
+            return
+
+        task_prompt = roles.augment_description(description, config.AGENT_ROLE)
+        result = runner.run_task(task_prompt)
+        if not result.success:
+            say(text=protocol.failure_message(config.AGENT_NAME, result.output), thread_ts=thread_ts)
+            return
+
+        summary = result.output
+        if config.AGENT_ROLE == "coder":
+            # Reviewer tasks act on PRs that already exist - they don't open
+            # new ones on themselves, so this step only applies to coders.
+            push = git_push.push_changes(description)
+            if push.pushed and push.pr_url:
+                summary += f"\n\nPR: {push.pr_url}"
+            elif push.pushed:
+                summary += f"\n\n(pushed, but {push.note})"
+            elif push.note != "no changes to push":
+                summary += f"\n\n(not pushed: {push.note})"
+        say(text=protocol.success_message(config.AGENT_NAME, summary), thread_ts=thread_ts)
 
 
 @app.event("message")
