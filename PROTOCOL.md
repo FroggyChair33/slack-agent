@@ -86,6 +86,15 @@ not an error).
 ```
 ​```
 
+This is also the path for anything that would otherwise fail silently:
+an unhandled exception in the agent's own code, a timeout (most often
+because a headless run got stuck waiting on an approval/input it will
+never receive), or a git sync failure. **Every failure must reach the
+thread** - an agent implementation must never let an error vanish into a
+log file with nothing posted to Slack. A failure message that says
+"needs a human to look" or mentions an approval/input it couldn't get is
+the signal that a person, not another agent, should pick this up next.
+
 ## 3. Git/PR behavior (part of the contract, not an implementation detail)
 
 Before running a task, an agent resets its working directory to a clean

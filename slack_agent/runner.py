@@ -44,7 +44,12 @@ def run_task(description: str) -> TaskResult:
             timeout=config.TASK_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
-        return TaskResult(False, f"Timed out after {config.TASK_TIMEOUT_SECONDS}s")
+        return TaskResult(
+            False,
+            f"Timed out after {config.TASK_TIMEOUT_SECONDS}s - likely stuck waiting on an "
+            f"approval/input that headless mode can't provide. Needs a human: either widen "
+            f"AGENT_SANDBOX_MODE for this task or do it manually.",
+        )
     except FileNotFoundError:
         return TaskResult(False, f"'{config.AGENT_BIN}' not found on PATH")
 

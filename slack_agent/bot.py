@@ -17,37 +17,52 @@ _workdir_lock = threading.Lock()
 
 
 def _work(description: str, thread_ts: str, say):
-    say(text=protocol.picked_up_message(config.AGENT_NAME), thread_ts=thread_ts)
+    # Last-resort net: anything unexpected (not just the failure paths we
+    # already handle below) must still reach the thread. Before this, an
+    # uncaught exception here just killed the background thread silently -
+    # Slack showed the pickup ack and then nothing, forever.
+    try:
+        say(text=protocol.picked_up_message(config.AGENT_NAME), thread_ts=thread_ts)
 
-    with _workdir_lock:
-        synced, sync_note = git_push.sync_to_base()
-        if not synced:
+        with _workdir_lock:
+            synced, sync_note = git_push.sync_to_base()
+            if not synced:
+                say(
+                    text=protocol.failure_message(
+                        config.AGENT_NAME, f"couldn't sync workdir to {config.BASE_BRANCH}: {sync_note}"
+                    ),
+                    thread_ts=thread_ts,
+                )
+                return
+
+            task_prompt = roles.augment_description(description, config.AGENT_ROLE)
+            result = runner.run_task(task_prompt)
+            if not result.success:
+                say(text=protocol.failure_message(config.AGENT_NAME, result.output), thread_ts=thread_ts)
+                return
+
+            summary = result.output
+            if config.AGENT_ROLE == "coder":
+                # Reviewer tasks act on PRs that already exist - they don't open
+                # new ones on themselves, so this step only applies to coders.
+                push = git_push.push_changes(description)
+                if push.pushed and push.pr_url:
+                    summary += f"\n\nPR: {push.pr_url}"
+                elif push.pushed:
+                    summary += f"\n\n(pushed, but {push.note})"
+                elif push.note != "no changes to push":
+                    summary += f"\n\n(not pushed: {push.note})"
+            say(text=protocol.success_message(config.AGENT_NAME, summary), thread_ts=thread_ts)
+    except Exception as exc:
+        try:
             say(
                 text=protocol.failure_message(
-                    config.AGENT_NAME, f"couldn't sync workdir to {config.BASE_BRANCH}: {sync_note}"
+                    config.AGENT_NAME, f"unexpected error, needs a human to look: {exc!r}"
                 ),
                 thread_ts=thread_ts,
             )
-            return
-
-        task_prompt = roles.augment_description(description, config.AGENT_ROLE)
-        result = runner.run_task(task_prompt)
-        if not result.success:
-            say(text=protocol.failure_message(config.AGENT_NAME, result.output), thread_ts=thread_ts)
-            return
-
-        summary = result.output
-        if config.AGENT_ROLE == "coder":
-            # Reviewer tasks act on PRs that already exist - they don't open
-            # new ones on themselves, so this step only applies to coders.
-            push = git_push.push_changes(description)
-            if push.pushed and push.pr_url:
-                summary += f"\n\nPR: {push.pr_url}"
-            elif push.pushed:
-                summary += f"\n\n(pushed, but {push.note})"
-            elif push.note != "no changes to push":
-                summary += f"\n\n(not pushed: {push.note})"
-        say(text=protocol.success_message(config.AGENT_NAME, summary), thread_ts=thread_ts)
+        except Exception:
+            print(f"[{config.AGENT_NAME}] also failed to report this error to Slack: {exc!r}")
 
 
 @app.event("message")
