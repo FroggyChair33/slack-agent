@@ -94,6 +94,10 @@ thread** - an agent implementation must never let an error vanish into a
 log file with nothing posted to Slack. A failure message that says
 "needs a human to look" or mentions an approval/input it couldn't get is
 the signal that a person, not another agent, should pick this up next.
+That same moment also triggers a local audio alert on whichever machine
+hit it (`slack_agent/alert.py`, Windows only, toggle with
+`AGENT_SOUND_ALERT`) - the point is to let someone be "on call" without
+having to watch the channel.
 
 ## 3. Git/PR behavior (part of the contract, not an implementation detail)
 

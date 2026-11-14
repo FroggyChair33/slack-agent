@@ -7,7 +7,7 @@ load_dotenv()
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from . import config, dedupe, git_push, protocol, roles, runner
+from . import alert, config, dedupe, git_push, protocol, roles, runner
 
 app = App(token=config.SLACK_BOT_TOKEN)
 _guard = dedupe.SeenGuard()
@@ -36,6 +36,7 @@ def _work(description: str, thread_ts: str, say):
         with _workdir_lock:
             synced, sync_note = git_push.sync_to_base()
             if not synced:
+                alert.play_alert()
                 say(
                     text=protocol.failure_message(
                         config.AGENT_NAME,
@@ -48,6 +49,7 @@ def _work(description: str, thread_ts: str, say):
             task_prompt = roles.augment_description(description, config.AGENT_ROLE, config.INSTINCT_MENTION)
             result = runner.run_task(task_prompt)
             if not result.success:
+                alert.play_alert()
                 say(
                     text=protocol.failure_message(config.AGENT_NAME, _escalate(result.output)),
                     thread_ts=thread_ts,
@@ -65,8 +67,14 @@ def _work(description: str, thread_ts: str, say):
                     summary += f"\n\n(pushed, but {push.note})"
                 elif push.note != "no changes to push":
                     summary += f"\n\n(not pushed: {push.note})"
+            if config.INSTINCT_MENTION in summary:
+                # The CLI itself flagged a problem (reviewer prompt asks it
+                # to) even though the run technically succeeded - still
+                # worth the alert.
+                alert.play_alert()
             say(text=protocol.success_message(config.AGENT_NAME, summary), thread_ts=thread_ts)
     except Exception as exc:
+        alert.play_alert()
         try:
             say(
                 text=protocol.failure_message(

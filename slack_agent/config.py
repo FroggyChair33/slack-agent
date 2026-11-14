@@ -14,6 +14,10 @@ AGENT_ROLE = os.environ.get("AGENT_ROLE", "coder")
 # its attention - a plain-text tag, same convention as @agent:<name>.
 INSTINCT_MENTION = os.environ.get("INSTINCT_MENTION", "@Instinct")
 
+# Play a local alert sound (Windows only) whenever something needs a human -
+# a failure, or a success that still flagged an issue via INSTINCT_MENTION.
+SOUND_ALERT_ENABLED = os.environ.get("AGENT_SOUND_ALERT", "true").lower() != "false"
+
 # "claude" (Claude Code) or "codex" (OpenAI Codex CLI) - picks the command
 # shape runner.py builds.
 AGENT_KIND = os.environ.get("AGENT_KIND", "claude")
