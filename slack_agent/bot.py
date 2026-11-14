@@ -16,6 +16,15 @@ _guard = dedupe.SeenGuard()
 _workdir_lock = threading.Lock()
 
 
+def _escalate(message: str) -> str:
+    """Reviewer-role failures (infra-level, not just the CLI's own judgment
+    calls) always tag the orchestrator - it assigned the review and needs to
+    know about anything that stopped it, not just what the CLI chose to say."""
+    if config.AGENT_ROLE == "reviewer":
+        return f"{message}\n\ncc {config.INSTINCT_MENTION}"
+    return message
+
+
 def _work(description: str, thread_ts: str, say):
     # Last-resort net: anything unexpected (not just the failure paths we
     # already handle below) must still reach the thread. Before this, an
@@ -29,16 +38,20 @@ def _work(description: str, thread_ts: str, say):
             if not synced:
                 say(
                     text=protocol.failure_message(
-                        config.AGENT_NAME, f"couldn't sync workdir to {config.BASE_BRANCH}: {sync_note}"
+                        config.AGENT_NAME,
+                        _escalate(f"couldn't sync workdir to {config.BASE_BRANCH}: {sync_note}"),
                     ),
                     thread_ts=thread_ts,
                 )
                 return
 
-            task_prompt = roles.augment_description(description, config.AGENT_ROLE)
+            task_prompt = roles.augment_description(description, config.AGENT_ROLE, config.INSTINCT_MENTION)
             result = runner.run_task(task_prompt)
             if not result.success:
-                say(text=protocol.failure_message(config.AGENT_NAME, result.output), thread_ts=thread_ts)
+                say(
+                    text=protocol.failure_message(config.AGENT_NAME, _escalate(result.output)),
+                    thread_ts=thread_ts,
+                )
                 return
 
             summary = result.output
@@ -57,7 +70,7 @@ def _work(description: str, thread_ts: str, say):
         try:
             say(
                 text=protocol.failure_message(
-                    config.AGENT_NAME, f"unexpected error, needs a human to look: {exc!r}"
+                    config.AGENT_NAME, _escalate(f"unexpected error, needs a human to look: {exc!r}")
                 ),
                 thread_ts=thread_ts,
             )

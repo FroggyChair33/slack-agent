@@ -10,6 +10,10 @@ WORKDIR = os.environ.get("AGENT_WORKDIR", os.getcwd())
 # (reviews/merges existing PRs, opens none itself). See roles/*.md.
 AGENT_ROLE = os.environ.get("AGENT_ROLE", "coder")
 
+# How the reviewer role pings the orchestrator bot when something needs
+# its attention - a plain-text tag, same convention as @agent:<name>.
+INSTINCT_MENTION = os.environ.get("INSTINCT_MENTION", "@Instinct")
+
 # "claude" (Claude Code) or "codex" (OpenAI Codex CLI) - picks the command
 # shape runner.py builds.
 AGENT_KIND = os.environ.get("AGENT_KIND", "claude")

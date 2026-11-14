@@ -13,6 +13,25 @@ a reviewer's job is to act on PRs that already exist, not open new ones.
 The CLI's own output (whatever it printed while running those `gh`
 commands) is reported back in the Slack thread as-is.
 
+## Escalating to Instinct
+
+Instinct (`@Instinct` by default, mentioned in Slack) is the orchestrator
+that hands out review tasks, so it needs to hear about anything that
+stops one - not just the people watching the channel. Two layers do this:
+
+1. **The CLI's own judgment.** The prompt it receives explicitly tells it
+   to state any problem plainly - conflicts, failing tests, anything
+   unresolved - and include the `@Instinct` mention in its final response
+   when it does. This covers things only the model can judge mid-review.
+2. **Infra-level failures, automatically.** A sync failure, a timeout, or
+   an unexpected crash in the agent's own code gets `@Instinct` appended
+   by `bot.py` regardless of what the CLI said (or whether it ran at
+   all) - these aren't things the model can self-report since they
+   happen outside its run.
+
+Override the handle with `INSTINCT_MENTION` in `.env` if it changes or
+differs from `@Instinct`.
+
 ## What to send it
 
 Specific, scoped instructions naming a PR: `@agent:<name> review PR #3,

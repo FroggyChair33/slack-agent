@@ -16,6 +16,16 @@ def test_reviewer_wraps_with_gh_instructions():
     assert "gh pr merge" in out
 
 
+def test_reviewer_includes_default_instinct_mention():
+    assert "@Instinct" in augment_description("merge PR #3", "reviewer")
+
+
+def test_reviewer_mention_is_configurable():
+    out = augment_description("merge PR #3", "reviewer", "@SomeoneElse")
+    assert "@SomeoneElse" in out
+    assert "@Instinct" not in out
+
+
 def test_unknown_role_behaves_like_coder():
     assert augment_description("fix the bug", "something-else") == "fix the bug"
 
@@ -23,5 +33,7 @@ def test_unknown_role_behaves_like_coder():
 if __name__ == "__main__":
     test_coder_unchanged()
     test_reviewer_wraps_with_gh_instructions()
+    test_reviewer_includes_default_instinct_mention()
+    test_reviewer_mention_is_configurable()
     test_unknown_role_behaves_like_coder()
     print("All role tests passed.")
