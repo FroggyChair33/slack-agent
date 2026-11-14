@@ -18,10 +18,13 @@ Each successful task gets committed on a fresh branch
 (`agent/<name>/<slugified-task>-<timestamp>`) and opened as a PR against
 `AGENT_BASE_BRANCH` (default `main`) via `gh pr create` - nothing is ever
 pushed straight to main. The PR link is posted back in the Slack thread.
-Before each task, the workdir is reset to a clean copy of the base branch
-(`git checkout <base> && git pull --ff-only`) so every task starts from
-the same state. Tasks that don't touch any files (e.g. answering a
-question) just skip the push silently.
+Before each task, the workdir fetches every branch's latest refs
+(`git fetch origin`), then resets to a clean copy of the base branch
+(`git checkout <base> && git pull --ff-only`) - so every task starts from
+the same state, and a review task can see other branches' latest commits
+even outside the `gh pr` commands that fetch on their own. Tasks that
+don't touch any files (e.g. answering a question) just skip the push
+silently.
 
 Requires `git` and `gh` installed and authenticated (`gh auth login`) on
 each teammate's machine, and `AGENT_WORKDIR` must be a clone of the shared

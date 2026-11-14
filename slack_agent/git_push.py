@@ -26,8 +26,14 @@ def _run(args):
 
 
 def sync_to_base():
-    """Reset the shared workdir to a clean copy of the base branch before a task
-    runs, so every task starts from the same known-good state."""
+    """Reset the shared workdir to a clean copy of the base branch before a
+    task runs, and refresh remote-tracking refs for every branch - not just
+    the base - so a review task can see other branches' latest commits even
+    if it falls back to plain git instead of gh's API-backed PR commands."""
+    fetch = _run(["git", "fetch", "origin"])
+    if fetch.returncode != 0:
+        return False, fetch.stderr.strip() or fetch.stdout.strip()
+
     checkout = _run(["git", "checkout", config.BASE_BRANCH])
     if checkout.returncode != 0:
         return False, checkout.stderr.strip() or checkout.stdout.strip()
