@@ -1,3 +1,5 @@
+import os
+import shlex
 import subprocess
 
 from . import config
@@ -9,8 +11,23 @@ class TaskResult:
         self.output = output
 
 
+def _to_wsl_path(windows_path: str) -> str:
+    drive, rest = os.path.splitdrive(windows_path)
+    return f"/mnt/{drive.rstrip(':').lower()}{rest.replace(os.sep, '/')}"
+
+
 def build_command(description: str) -> list:
     """Build the headless CLI invocation for the configured agent kind."""
+    cmd = _build_native_command(description)
+    if config.AGENT_RUN_IN_WSL:
+        # Run the CLI itself inside WSL2 so its own internal tool-use shell
+        # (bash, not cmd.exe) inherits whatever toolchain only exists there.
+        inner = f"cd {shlex.quote(_to_wsl_path(config.WORKDIR))} && {shlex.join(cmd)}"
+        return ["wsl.exe", "-d", config.WSL_DISTRO, "--", "bash", "-lc", inner]
+    return cmd
+
+
+def _build_native_command(description: str) -> list:
     if config.AGENT_KIND == "codex":
         if config.AGENT_SANDBOX_MODE == "yolo":
             # --approve-for-me (the flag that actually skips approval

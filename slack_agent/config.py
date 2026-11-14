@@ -28,6 +28,14 @@ AGENT_SANDBOX_MODE = os.environ.get("AGENT_SANDBOX_MODE", _DEFAULT_SANDBOX_MODE.
 
 TASK_TIMEOUT_SECONDS = int(os.environ.get("TASK_TIMEOUT_SECONDS", "1800"))
 
+# Some tasks (Rust/Solana/Anchor builds) need a toolchain that only exists
+# inside WSL2 on Windows - installing it there doesn't put it on native
+# Windows' PATH, so the agent's own process has to actually run inside WSL2
+# for its internal tool-use shell to see it. When set, runner.py wraps the
+# CLI invocation through wsl.exe instead of running it natively.
+AGENT_RUN_IN_WSL = os.environ.get("AGENT_RUN_IN_WSL", "false").lower() == "true"
+WSL_DISTRO = os.environ.get("AGENT_WSL_DISTRO", "Ubuntu")
+
 # Branch in the shared repo that AGENT_WORKDIR gets synced to before each task,
 # and that finished work gets PR'd against.
 BASE_BRANCH = os.environ.get("AGENT_BASE_BRANCH", "main")

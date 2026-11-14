@@ -147,6 +147,28 @@ vs. failure in plain-text mode the way Claude Code's does - worth a quick
 smoke test before relying on it; if it doesn't, switch to `--json` and check
 for a `turn.failed`/`error` event instead of the exit code.
 
+## Running a task's toolchain inside WSL2 (Windows only)
+
+Some tasks need a toolchain that's only installed inside WSL2 (e.g. Rust/
+Solana/Anchor) - installing it there doesn't put it on native Windows'
+`PATH`, so an agent running natively on Windows can't see it even though the
+toolchain exists on the same machine. Installing the toolchain in a
+*separate* WSL2 terminal from the one the agent's own commands run in does
+not fix this - the agent's own process has to actually run inside WSL2, so
+its internal tool-use shell (bash, not `cmd.exe`) is the one that inherits
+that `PATH`.
+
+Set `AGENT_RUN_IN_WSL=true` (and `AGENT_WSL_DISTRO`, default `Ubuntu`) to
+have `runner.py` wrap the CLI invocation through `wsl.exe` instead of
+running it natively. `AGENT_WORKDIR` stays a normal Windows path - it's
+translated to its `/mnt/c/...` equivalent for the `cd` inside WSL2, so
+`git_push.py`'s own git/gh calls (which still run natively) and the task's
+CLI invocation (which now runs inside WSL2) operate on the exact same
+checkout. Requires, inside that WSL2 distro specifically (separate from
+anything installed on native Windows): the CLI itself (`claude`/`codex`)
+installed and logged in, plus `git`/`gh` if the model falls back to running
+them itself mid-task.
+
 ## Self-check
 
 ```

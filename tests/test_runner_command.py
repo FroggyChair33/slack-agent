@@ -37,8 +37,26 @@ def test_codex_yolo_command():
     ]
 
 
+def test_wsl_wrapped_command():
+    config.AGENT_KIND = "claude"
+    config.AGENT_BIN = "claude"
+    config.AGENT_SANDBOX_MODE = "acceptEdits"
+    config.AGENT_RUN_IN_WSL = True
+    config.WSL_DISTRO = "Ubuntu"
+    config.WORKDIR = r"C:\Users\steph\EmoryHacksDevEnvironment\WorkSpace"
+    try:
+        cmd = runner.build_command("fix the bug")
+    finally:
+        config.AGENT_RUN_IN_WSL = False
+    assert cmd[:4] == ["wsl.exe", "-d", "Ubuntu", "--"]
+    assert cmd[4:6] == ["bash", "-lc"]
+    assert "/mnt/c/Users/steph/EmoryHacksDevEnvironment/WorkSpace" in cmd[6]
+    assert "claude -p 'fix the bug'" in cmd[6]
+
+
 if __name__ == "__main__":
     test_claude_command()
     test_codex_command()
     test_codex_yolo_command()
+    test_wsl_wrapped_command()
     print("All runner command tests passed.")
