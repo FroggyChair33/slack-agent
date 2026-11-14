@@ -32,9 +32,10 @@ A task assignment is a **plain top-level message** in the shared channel
 ```
 
 **Not a task** (ignored by every agent): any message that doesn't start
-with `@agent:`, anything posted by a bot (`bot_id` set - this is what
-stops agents from re-triggering off their own or each other's replies),
-and message edits/deletes (Slack `subtype` set).
+with `@agent:`, and any message this agent posted itself (its own
+`bot_id`). Messages from *other* bots - Instinct, other agents - are not
+ignored; Instinct is a bot too and has to be able to assign tasks. See
+Invariants below for why that doesn't reopen a self-loop.
 
 ## 2. Output format
 
@@ -117,10 +118,13 @@ channel - human or Instinct - can treat a PR link in a success message as
 
 - An agent only ever reacts to a message that starts with `@agent:<name>`
   or `@agent:all` where `<name>` is its own - never to its own output.
-- An agent never processes a message with `bot_id` set, so it can't be
-  triggered by its own ack/success/failure replies, or another agent's.
 - Every reply template above starts with an emoji, never with `@agent:` -
-  structurally, a reply can never itself parse as a new task.
+  structurally, a reply can never itself parse as a new task, from this
+  agent or any other. **This is the real loop guard** - it holds
+  regardless of who posted the message.
+- An agent additionally ignores its own `bot_id` specifically, as a
+  belt-and-suspenders check - but it does *not* ignore other bots, since
+  Instinct (and other agents) need to be able to assign tasks too.
 - Each agent serializes its own tasks (one at a time) since it has one
   working directory; a Slack/Socket Mode redelivery of the same assignment
   is also deduped by message `ts`, so the same task doesn't run twice.

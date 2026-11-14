@@ -10,6 +10,9 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from . import alert, config, dedupe, git_push, protocol, roles, runner
 
 app = App(token=config.SLACK_BOT_TOKEN)
+# Needed to tell "this agent's own reply" apart from any other bot's message
+# (Instinct, another agent) - we only want to ignore the former.
+_OWN_BOT_ID = app.client.auth_test().get("bot_id")
 _guard = dedupe.SeenGuard()
 # AGENT_WORKDIR is one shared git working tree - serialize tasks so two
 # messages addressed to this agent can't run git/CLI ops in it at once.
@@ -88,8 +91,13 @@ def _work(description: str, thread_ts: str, say):
 
 @app.event("message")
 def handle_message(event, say):
-    # Ignore bot-originated messages (including our own acks/results) and edits/deletes.
-    if event.get("bot_id") or event.get("subtype"):
+    # Only ignore THIS agent's own messages (its pickup/success/failure
+    # replies) - not bots in general. Instinct and other agents are bots
+    # too and need to be able to assign tasks. The anchored "@agent:" regex
+    # below is what actually prevents a self-loop (every reply template
+    # starts with an emoji, never literally "@agent:"); this is just an
+    # extra guard against this agent's own messages specifically.
+    if event.get("bot_id") and event.get("bot_id") == _OWN_BOT_ID:
         return
 
     # event.get("text", "") only falls back when the key is missing - some

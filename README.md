@@ -161,10 +161,13 @@ python tests/test_roles.py
 
 - Matching is plain-text (`@agent:<name> ...`), not a real Slack
   `@mention` - there's no shared per-agent Slack identity to mention. The
-  regex is anchored to the start of the message, and any message posted
-  by a bot (`bot_id` set - including this script's own acks/results) is
-  ignored outright, so an agent can never re-trigger itself off its own
-  reply.
+  regex is anchored to the start of the message, and every reply template
+  starts with an emoji rather than `@agent:` - so a reply can never parse
+  as a new task, from this agent or any other. That's the real loop guard;
+  it holds for bot-authored messages too, which matters since Instinct (the
+  orchestrator) is itself a bot and needs to be able to assign tasks. An
+  agent additionally ignores messages from its *own* `bot_id` specifically,
+  as a belt-and-suspenders check - but not other bots in general.
 - Tasks run in a background thread, not inside the Slack event handler.
   Running a 30-minute `claude -p` call synchronously in the handler would
   stop Bolt from acking Slack in time, causing Socket Mode to redeliver
