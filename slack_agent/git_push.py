@@ -18,7 +18,11 @@ def _slug(text: str, limit: int = 40) -> str:
 
 
 def _run(args):
-    return subprocess.run(args, cwd=config.WORKDIR, capture_output=True, text=True)
+    # encoding/errors explicit, not just text=True: Windows otherwise decodes
+    # with the system codepage (e.g. cp1252), which crashes on Unicode bytes
+    # git/gh commonly print (smart quotes, etc.) and leaves stdout/stderr as
+    # None instead of raising cleanly.
+    return subprocess.run(args, cwd=config.WORKDIR, capture_output=True, encoding="utf-8", errors="replace")
 
 
 def sync_to_base():

@@ -40,7 +40,8 @@ def run_task(description: str) -> TaskResult:
             build_command(description),
             cwd=config.WORKDIR,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=config.TASK_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
