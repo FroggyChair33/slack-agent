@@ -1,3 +1,4 @@
+import os
 import re
 import subprocess
 import time
@@ -43,22 +44,36 @@ def sync_to_base():
     return True, ""
 
 
-def _unstage_gitlinks():
-    """A task's own scratch work can leave a directory with its own .git
-    inside the workdir (e.g. a nested clone it made to test something).
-    `git add -A` stages that as a gitlink (mode 160000) instead of its files,
-    which looks like a submodule reference - but with no .gitmodules entry,
-    that breaks any later `git submodule` command, including the one
-    actions/checkout runs during its own cleanup. Drop any such path from
-    the index (left alone on disk) before committing."""
-    staged = _run(["git", "diff", "--cached", "--raw"])
-    gitlink_paths = [
-        line.split("\t", 1)[1]
-        for line in staged.stdout.splitlines()
-        if " 160000 " in line
-    ]
-    for path in gitlink_paths:
-        _run(["git", "rm", "-r", "--cached", "--quiet", path])
+def _nested_git_paths():
+    """Any directory under WORKDIR (other than the repo root itself) that
+    contains a .git entry is a scratch clone or a linked worktree a task
+    made for its own use. Git stages that as a gitlink (mode 160000) instead
+    of its files, which looks like a submodule reference - but with no
+    .gitmodules entry, that breaks any later `git submodule` command,
+    including the one actions/checkout runs during its own cleanup. Find
+    every such path so none of them ever get staged in the first place."""
+    found = []
+    for root, dirs, files in os.walk(config.WORKDIR):
+        if root != config.WORKDIR and (".git" in dirs or ".git" in files):
+            found.append(os.path.relpath(root, config.WORKDIR).replace(os.sep, "/"))
+            dirs[:] = []
+            continue
+        if ".git" in dirs:
+            dirs.remove(".git")
+    return found
+
+
+def _strip_committed_gitlinks():
+    """A gitlink can also already be sitting in the index - inherited
+    unchanged from the base branch, or left by an earlier task's commit on
+    this same branch. `git add` never revisits a path that hasn't changed,
+    so excluding nested paths from the add below can't catch these; drop
+    any gitlink already tracked before adding anything new."""
+    tracked = _run(["git", "ls-files", "-s"])
+    for line in tracked.stdout.splitlines():
+        if line.startswith("160000"):
+            path = line.split("\t", 1)[1]
+            _run(["git", "rm", "-r", "--cached", "--quiet", "--ignore-unmatch", path])
 
 
 def push_changes(description: str) -> PushResult:
@@ -70,14 +85,35 @@ def push_changes(description: str) -> PushResult:
         return PushResult(pushed=False, note="no changes to push")
 
     branch = f"agent/{config.AGENT_NAME}/{_slug(description)}-{int(time.time())}"
+
+    checkout = _run(["git", "checkout", "-b", branch])
+    if checkout.returncode != 0:
+        _run(["git", "checkout", config.BASE_BRANCH])
+        return PushResult(
+            pushed=False,
+            note=f"`git checkout -b {branch}` failed: {checkout.stderr.strip() or checkout.stdout.strip()}",
+        )
+
+    _strip_committed_gitlinks()
+    skip = _nested_git_paths()
+    add = _run(["git", "add", "-A", "--", "."] + [f":(exclude){p}" for p in skip])
+    if add.returncode != 0:
+        _run(["git", "checkout", config.BASE_BRANCH])
+        return PushResult(pushed=False, note=f"`git add` failed: {add.stderr.strip() or add.stdout.strip()}")
+
+    # Belt-and-suspenders: if a gitlink is still staged despite the above
+    # (an edge case neither step anticipated), refuse to commit rather than
+    # silently ship a branch that will break actions/checkout downstream.
+    staged = _run(["git", "diff", "--cached", "--raw"])
+    if any(" 160000 " in line for line in staged.stdout.splitlines()):
+        _run(["git", "reset"])
+        _run(["git", "checkout", config.BASE_BRANCH])
+        return PushResult(pushed=False, note="not pushed: a gitlink was still staged after cleanup, needs a human to look")
+
     for step in (
-        ["git", "checkout", "-b", branch],
-        ["git", "add", "-A"],
         ["git", "commit", "-m", f"[{config.AGENT_NAME}] {description[:72]}"],
         ["git", "push", "-u", "origin", branch],
     ):
-        if step[1] == "commit":
-            _unstage_gitlinks()
         result = _run(step)
         if result.returncode != 0:
             _run(["git", "checkout", config.BASE_BRANCH])
